@@ -9,14 +9,13 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // directUrl = env("DIRECT_URL")
 }
 
 model link {
-  id        Int      @id @default(autoincrement())
-  short     String   @unique @default(dbgenerated("DECLARE @newShort VARCHAR(desired_length);BEGIN TRANSACTION;WHILE EXISTS (SELECT 1 FROM link WHERE short = @newShort)BEGINSET @newShort = LEFT(LOWER(RAND())::text, desired_length);SET @newShort = REPLACE(@newShort, '[^a-z0-9]', '');END;COMMIT TRANSACTION;SELECT @newShort AS new_short_string;"))
+  short     String   @id @default(cuid())
   long      String
   createdAt DateTime @default(now())
 }

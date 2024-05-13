@@ -1,28 +1,77 @@
 "use server";
 
 import { z } from "zod";
-
-const schema = z.object({
-  long: z.string().url("your url is invalid"),
-  short: z
-    .string()
-    .min(4, "your short string must be at least 4 characters long")
-    .optional(),
-});
+import { db } from "./db";
 
 export default async function createLinkAction(
   initialState: any,
   formData: FormData
-) {
-  const validatedFields = schema.safeParse({
-    long: formData.get("long"),
-    short: formData.get("short"),
-  });
+): Promise<{
+  error?: {
+    long?: string;
+    short?: string;
+  };
+  long?: string;
+  short?: string;
 
-  if (!validatedFields.success)
+  link?: string;
+}> {
+  const long = z
+    .string()
+    .url("your url is invalid")
+    .safeParse(formData.get("long"));
+
+  const short = z
+    .string()
+    .trim()
+    .regex(
+      /^[a-zA-Z0-9-]*$/,
+      "your short url can only contain a-z, A-Z, 0-9 and -"
+    )
+    .refine((str) => str.length === 0 || str.length >= 4, {
+      message: "your short url should be at least 4 characters",
+    })
+    .safeParse(formData.get("short"));
+
+  if (!long.success) {
+    const recoveredLong = formData.get("long");
+    console.log(long.error.flatten());
     return {
-      errors: validatedFields.error.flatten().fieldErrors,
+      error: {
+        long:
+          long.error.flatten().formErrors.at(0) ||
+          "fieldError in long no success: " +
+            JSON.stringify(long.error.flatten().fieldErrors),
+      },
+      long:
+        typeof recoveredLong === "string"
+          ? recoveredLong
+          : undefined || undefined,
+    };
+  }
+
+  if (!short.success)
+    return {
+      error: {
+        short:
+          short.error.flatten().formErrors.at(0) ||
+          "fieldError in short no success: " +
+            JSON.stringify(short.error.flatten().fieldErrors),
+      },
+      long: long.data,
     };
 
-  return { message: "done" };
+  const data = {
+    long: long.data,
+    short: short.data || undefined,
+  };
+  console.log("short:", data.short);
+  const res = await db.link.create({ data });
+  console.log(res);
+
+  return {
+    link: new URL("/" + res.short, process.env.NEXT_PUBLIC_APP_URL).toString(),
+    long: long.data,
+    short: short.data,
+  };
 }

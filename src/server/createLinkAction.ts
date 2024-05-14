@@ -65,13 +65,41 @@ export default async function createLinkAction(
     long: long.data,
     short: short.data || undefined,
   };
+
+  if (data.short !== undefined) {
+    // check if short is taken
+    const existingShortLink = await db.link.findFirst({
+      where: { short: data.short },
+    });
+    if (existingShortLink !== null)
+      return {
+        error: { short: "This URL does already exist" },
+        short: data.short,
+        long: data.long,
+      };
+  } else {
+    // check if link with same long already exists (save db space)
+    const existingLongLink = await db.link.findFirst({
+      where: {
+        long: data.long,
+      },
+    });
+    if (existingLongLink !== null)
+      return {
+        link: new URL(
+          "/" + existingLongLink.short,
+          process.env.NEXT_PUBLIC_APP_URL
+        ).toString(),
+        ...data,
+      };
+  }
+
   console.log("short:", data.short);
   const res = await db.link.create({ data });
   console.log(res);
 
   return {
     link: new URL("/" + res.short, process.env.NEXT_PUBLIC_APP_URL).toString(),
-    long: long.data,
-    short: short.data,
+    ...data,
   };
 }
